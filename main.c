@@ -22,6 +22,21 @@
 /* Address of the temperature sensor on the I2C bus */
 #define TEMP_SENSOR_ADDR 0x48
 
+int getsw( void ){
+    
+    int sw = (PORTD >> 8) & 0x000F;  //Skifta bitarna 11-8 till plats till lsb, maska! Spara som int.
+    
+    return sw;
+}
+int getbtns(void){
+    
+    int btn = (PORTD >> 5) & 0x0007;    //Skifta bitarna 7-5 till plats till lsb, maska! Spara som int.
+    
+    return btn;
+}
+
+
+
 /* Temperature sensor internal registers */
 typedef enum TempSensorReg TempSensorReg;
 enum TempSensorReg {
@@ -450,10 +465,14 @@ int main(void) {
 		*t++ = 7;
 		*t++ = 'C';
 		*t++ = 0;
-		
-		display_string(1, s);
-		display_update();
-		delay(1000000);
+        int switch_value = getsw();
+        
+        if (switch_value << 12){
+            display_string(1, s);
+            display_update();
+            delay(1000000);
+        }
+	
 	}
 	
 	return 0;
