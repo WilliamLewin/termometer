@@ -35,8 +35,6 @@ int getbtns(void){
     return btn;
 }
 
-
-
 /* Temperature sensor internal registers */
 typedef enum TempSensorReg TempSensorReg;
 enum TempSensorReg {
@@ -329,8 +327,18 @@ char *fixed_to_string(uint16_t num, char *buf) {
 		neg = true;
 	}
 	
+	// Checking the positions of the switches
+	int switch_value = getsw();
+	
+	// Depending on the positions the temperature will be converted to celsius, kelvin or fahrenheit
+	if (switch_value == 0)
+		n = (num >> 8);
+	else if (switch_value == 8)
+		n = (num >> 8) + 273; 
+	else if (switch_value == 4)
+		n = (((num >> 8) * 2) + 32);
+	
 	buf += 4;
-	n = num >> 8;
 	tmp = buf;
 	do {
 		*--tmp = (n  % 10) + '0';
@@ -461,20 +469,48 @@ int main(void) {
 		
 		s = fixed_to_string(temp, buf);
 		t = s + strlen(s);
+		
+		int switch_value = getsw();
+		
 		*t++ = ' ';
-		*t++ = 7;
-		*t++ = 'C';
-		*t++ = 0;
-        int switch_value = getsw();
-        
-        if (switch_value << 12){
-            display_string(1, s);
-            display_update();
-            delay(1000000);
-        }
+		
+		// Depending on the positions the temperature will be displayed in celsius, kelvin or fahrenheit 
+		if (switch_value == 0)
+		{
+			*t++ = 7;
+			*t++ = 'C';
+			*t++ = 0;
+			
+			display_string(1, s);
+			display_string(2, "");
+		}
+		else if (switch_value == 8)
+		{
+			*t++ = 'K';
+			*t++ = 0;
+			
+			display_string(1, s);
+			display_string(2, "");
+		}
+		else if (switch_value == 4)
+		{
+			*t++ = 7;
+			*t++ = 'F';
+			*t++ = 0;
+			
+			display_string(1, s);
+			display_string(2, "");
+		}
+		// If two or more switches are switched an error message will appear
+		else
+		{
+			display_string(1, "Invalid input");
+			display_string(2, "combination!");
+		}
 	
+		display_update();
+		delay(1000000);
 	}
 	
 	return 0;
 }
-
