@@ -22,6 +22,19 @@
 /* Address of the temperature sensor on the I2C bus */
 #define TEMP_SENSOR_ADDR 0x48
 
+int getsw( void ){
+    
+    int sw = (PORTD >> 8) & 0x000F;  //Skifta bitarna 11-8 till plats till lsb, maska! Spara som int.
+    
+    return sw;
+}
+int getbtns(void){
+    
+    int btn = (PORTD >> 5) & 0x0007;    //Skifta bitarna 7-5 till plats till lsb, maska! Spara som int.
+    
+    return btn;
+}
+
 /* Temperature sensor internal registers */
 typedef enum TempSensorReg TempSensorReg;
 enum TempSensorReg {
@@ -314,8 +327,18 @@ char *fixed_to_string(uint16_t num, char *buf) {
 		neg = true;
 	}
 	
+	// Checking the positions of the switches
+	int switch_value = getsw();
+	
+	// Depending on the positions the temperature will be converted to celsius, kelvin or fahrenheit
+	if (switch_value == 0)
+		n = (num >> 8);
+	else if (switch_value == 8)
+		n = (num >> 8) + 273; 
+	else if (switch_value == 4)
+		n = (((num >> 8) * 2) + 32);
+	
 	buf += 4;
-	n = num >> 8;
 	tmp = buf;
 	do {
 		*--tmp = (n  % 10) + '0';
@@ -446,16 +469,48 @@ int main(void) {
 		
 		s = fixed_to_string(temp, buf);
 		t = s + strlen(s);
-		*t++ = ' ';
-		*t++ = 7;
-		*t++ = 'C';
-		*t++ = 0;
 		
-		display_string(1, s);
+		int switch_value = getsw();
+		
+		*t++ = ' ';
+		
+		// Depending on the positions the temperature will be displayed in celsius, kelvin or fahrenheit 
+		if (switch_value == 0)
+		{
+			*t++ = 7;
+			*t++ = 'C';
+			*t++ = 0;
+			
+			display_string(1, s);
+			display_string(2, "");
+		}
+		else if (switch_value == 8)
+		{
+			*t++ = 'K';
+			*t++ = 0;
+			
+			display_string(1, s);
+			display_string(2, "");
+		}
+		else if (switch_value == 4)
+		{
+			*t++ = 7;
+			*t++ = 'F';
+			*t++ = 0;
+			
+			display_string(1, s);
+			display_string(2, "");
+		}
+		// If two or more switches are switched an error message will appear
+		else
+		{
+			display_string(1, "Invalid input");
+			display_string(2, "combination!");
+		}
+	
 		display_update();
 		delay(1000000);
 	}
 	
 	return 0;
 }
-
