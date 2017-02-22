@@ -22,6 +22,10 @@
 /* Address of the temperature sensor on the I2C bus */
 #define TEMP_SENSOR_ADDR 0x48
 
+// Definitions for display_image()
+#define DISPLAY_CHANGE_TO_COMMAND_MODE (PORTFCLR = 0x10)
+#define DISPLAY_CHANGE_TO_DATA_MODE (PORTFSET = 0x10)
+
 /* Temperature sensor internal registers */
 typedef enum TempSensorReg TempSensorReg;
 enum TempSensorReg {
@@ -31,6 +35,13 @@ enum TempSensorReg {
 	TEMP_SENSOR_REG_LIMIT,
 };
 
+// Global variables for the icons
+int display_snowflake = 0;
+int display_sun = 0;
+int display_palm = 0;
+
+// Timer period
+int period = 123;
 
 char textbuffer[4][16];
 
@@ -165,6 +176,138 @@ static const uint8_t const font[] = {
 	0, 120, 68, 66, 68, 120, 0, 0,
 };
 
+// Sun icon
+const uint8_t const sun [] = {
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x80, 0x00, 0x00,
+	0x00, 0x80, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x20, 0x00, 0x40, 0x40, 0x41, 0x80, 0x82, 0x04, 0x08, 0x40, 0x00, 0x01, 0x04, 0x00,
+	0x00, 0x07, 0x00, 0x10, 0x20, 0x08, 0x00, 0x04, 0x02, 0x00, 0x01, 0x00, 0x80, 0x80, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x40, 0x40, 0x20, 0x00, 0x07, 0x08, 0x00, 0x10, 0x50, 0x10,
+	0x10, 0x00, 0xC8, 0x04, 0x03, 0x00, 0x08, 0x00, 0x10, 0x00, 0x20, 0x40, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x0C, 0x01, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x0E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+// Palm icon
+const uint8_t const palm [] = {
+	0x00, 0x00, 0x80, 0x80, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xA0, 0xE0, 0xA0, 0xE0, 0x60, 0xC0, 0xC0,
+	0x80, 0x80, 0x80, 0x80, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x02, 0xE3, 0xF1, 0xF8, 0x18, 0x7D, 0x3C, 0x1C, 0x06, 0x8E, 0xA6, 0xF7, 0x3B, 0x0F, 0x07,
+	0x0F, 0x6F, 0x3F, 0xFF, 0xCF, 0x1F, 0x1F, 0x7C, 0xF8, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x03, 0x01, 0x00, 0xC0, 0xD0, 0xDC, 0xFB, 0x0D, 0x01, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x07, 0x03, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x40, 0x7E, 0x28, 0x7E, 0x7F, 0x3D, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+// Snowflake icon
+const uint8_t const snowflake [] = {
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0xE0, 0xC0, 0xD8, 0xF8, 0x00, 0x00, 0x04, 0x1C, 0xF8, 0xFE,
+	0x10, 0x18, 0x1C, 0x04, 0x00, 0x00, 0x00, 0x60, 0xF0, 0xC0, 0xE0, 0x80, 0x80, 0x00, 0x00, 0x00,
+	0x40, 0xD0, 0xD8, 0xF0, 0xE1, 0xC1, 0xC1, 0x81, 0x81, 0x83, 0x87, 0x8E, 0x9C, 0xB8, 0xFF, 0xFF,
+	0xC0, 0xE0, 0xE0, 0xB0, 0x98, 0x9C, 0x0E, 0x07, 0x03, 0x01, 0x01, 0xC1, 0xC0, 0x60, 0x60, 0x40,
+	0x00, 0x02, 0x03, 0x01, 0x61, 0xA0, 0xE1, 0xE1, 0xF1, 0x39, 0x19, 0x0D, 0x0F, 0x07, 0xFF, 0xFF,
+	0x01, 0x03, 0x07, 0x0F, 0x1D, 0x19, 0x31, 0xF1, 0xE3, 0xC3, 0x63, 0xC7, 0xCF, 0x0B, 0x03, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x05, 0x07, 0x03, 0x00, 0x20, 0x30, 0x18, 0x0C, 0x7F, 0x0F,
+	0x0C, 0x38, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x01, 0x03, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00
+};
+
+// Get switches
+int getsw(void){
+    int sw = (PORTD >> 8) & 0x000F;  //Skifta bitarna 11-8 till plats till lsb, maska! Spara som int.
+    
+    return sw;
+}
+
+// Get buttons
+int getbtns(void){
+    int btn = (PORTD >> 4) & 0x000F;    //Skifta bitarna 7-4 till plats till lsb, maska! Spara som int.
+    
+    return btn;
+}
+
+// Function copied from lab3
+/*
+ * itoa
+ * 
+ * Simple conversion routine
+ * Converts binary to decimal numbers
+ * Returns pointer to (static) char array
+ * 
+ * The integer argument is converted to a string
+ * of digits representing the integer in decimal format.
+ * The integer is considered signed, and a minus-sign
+ * precedes the string of digits if the number is
+ * negative.
+ * 
+ * This routine will return a varying number of digits, from
+ * one digit (for integers in the range 0 through 9) and up to
+ * 10 digits and a leading minus-sign (for the largest negative
+ * 32-bit integers).
+ * 
+ * If the integer has the special value
+ * 100000...0 (that's 31 zeros), the number cannot be
+ * negated. We check for this, and treat this as a special case.
+ * If the integer has any other value, the sign is saved separately.
+ * 
+ * If the integer is negative, it is then converted to
+ * its positive counterpart. We then use the positive
+ * absolute value for conversion.
+ * 
+ * Conversion produces the least-significant digits first,
+ * which is the reverse of the order in which we wish to
+ * print the digits. We therefore store all digits in a buffer,
+ * in ASCII form.
+ * 
+ * To avoid a separate step for reversing the contents of the buffer,
+ * the buffer is initialized with an end-of-string marker at the
+ * very end of the buffer. The digits produced by conversion are then
+ * stored right-to-left in the buffer: starting with the position
+ * immediately before the end-of-string marker and proceeding towards
+ * the beginning of the buffer.
+ * 
+ * For this to work, the buffer size must of course be big enough
+ * to hold the decimal representation of the largest possible integer,
+ * and the minus sign, and the trailing end-of-string marker.
+ * The value 24 for ITOA_BUFSIZ was selected to allow conversion of
+ * 64-bit quantities; however, the size of an int on your current compiler
+ * may not allow this straight away.
+ */
+#define ITOA_BUFSIZ ( 24 )
+char * itoaconv( int num )
+{
+  register int i, sign;
+  static char itoa_buffer[ ITOA_BUFSIZ ];
+  static const char maxneg[] = "-2147483648";
+  
+  itoa_buffer[ ITOA_BUFSIZ - 1 ] = 0;   /* Insert the end-of-string marker. */
+  sign = num;                           /* Save sign. */
+  if( num < 0 && num - 1 > 0 )          /* Check for most negative integer */
+  {
+    for( i = 0; i < sizeof( maxneg ); i += 1 )
+    itoa_buffer[ i + 1 ] = maxneg[ i ];
+    i = 0;
+  }
+  else
+  {
+    if( num < 0 ) num = -num;           /* Make number positive. */
+    i = ITOA_BUFSIZ - 2;                /* Location for first ASCII digit. */
+    do {
+      itoa_buffer[ i ] = num % 10 + '0';/* Insert next digit. */
+      num = num / 10;                   /* Remove digit from number. */
+      i -= 1;                           /* Move index to next empty position. */
+    } while( num > 0 );
+    if( sign < 0 )
+    {
+      itoa_buffer[ i ] = '-';
+      i -= 1;
+    }
+  }
+  /* Since the loop always sets the index i to the next empty position,
+   * we must add 1 in order to return a pointer to the first occupied position. */
+  return( &itoa_buffer[ i + 1 ] );
+}
+
 void delay(int cyc) {
 	int i;
 	for(i = cyc; i > 0; i--);
@@ -207,6 +350,24 @@ void display_init() {
 	spi_send_recv(0xAF);
 }
 
+void display_image(int x, const uint8_t *data) {
+    int i, j;
+    for(i = 0; i < 4; i++) {
+        DISPLAY_CHANGE_TO_COMMAND_MODE;
+
+        spi_send_recv(0x22);
+        spi_send_recv(i);
+
+        spi_send_recv(x & 0xF);
+        spi_send_recv(0x10 | ((x >> 4) & 0xF));
+		
+        DISPLAY_CHANGE_TO_DATA_MODE;
+
+        for(j = 0; j < 32; j++)
+            spi_send_recv(~data[i*32 + j]);
+    }
+}
+
 void display_string(int line, char *s) {
 	int i;
 	if(line < 0 || line >= 4)
@@ -235,7 +396,8 @@ void display_update() {
 		
 		DISPLAY_COMMAND_DATA_PORT |= DISPLAY_COMMAND_DATA_MASK;
 		
-		for(j = 0; j < 16; j++) {
+		// Original value j < 16 but j < 12 removes flimmering on the icon
+		for(j = 0; j < 12; j++) {
 			c = textbuffer[i][j];
 			if(c & 0x80)
 				continue;
@@ -309,13 +471,43 @@ char *fixed_to_string(uint16_t num, char *buf) {
 	uint32_t n;
 	char *tmp;
 	
+	uint16_t snowflake_or_sun = 0x0A00; // Temperature value 10 celsius
+    uint16_t sun_or_palm = 0x1900; // Temperature value 25 celsius
+	
 	if(num & 0x8000) {
 		num = ~num + 1;
 		neg = true;
 	}
 	
+	// Changing picture depending on the temperature
+	if (num >= snowflake_or_sun && num < sun_or_palm){ 
+        display_sun = 1;
+		display_palm = 0;
+		display_snowflake = 0;
+	}
+    else if (num >= sun_or_palm){ 
+        display_palm = 1;
+		display_sun = 0;
+		display_snowflake = 0;
+	}
+	else{
+		display_snowflake = 1;
+		display_palm = 0;
+		display_sun = 0;
+	}
+	
+	// Checking the positions of the switches
+	int switch_value = getsw();
+	
+	// Depending on the positions the temperature will be converted to celsius, kelvin or fahrenheit
+	if (switch_value == 0)
+		n = (num >> 8);
+	else if (switch_value == 8)
+		n = (num >> 8) + 273; 
+	else if (switch_value == 4)
+		n = (((num >> 8) * 2) + 32);
+	
 	buf += 4;
-	n = num >> 8;
 	tmp = buf;
 	do {
 		*--tmp = (n  % 10) + '0';
@@ -398,9 +590,8 @@ int main(void) {
 	TRISDSET = (1 << 8);
 	TRISFSET = (1 << 1);
 	
-	
 	display_init();
-	display_string(0, "Temperature:");
+	display_string(0, "");
 	display_string(1, "");
 	display_string(2, "");
 	display_string(3, "");
@@ -412,6 +603,7 @@ int main(void) {
 	do {
 		i2c_start();
 	} while(!i2c_send(TEMP_SENSOR_ADDR << 1));
+	
 	/* Send register number we want to access */
 	i2c_send(TEMP_SENSOR_REG_CONF);
 	/* Set the config register to 0 */
@@ -426,6 +618,7 @@ int main(void) {
 		do {
 			i2c_start();
 		} while(!i2c_send(TEMP_SENSOR_ADDR << 1));
+		
 		/* Send register number we want to access */
 		i2c_send(TEMP_SENSOR_REG_TEMP);
 		
@@ -446,16 +639,72 @@ int main(void) {
 		
 		s = fixed_to_string(temp, buf);
 		t = s + strlen(s);
-		*t++ = ' ';
-		*t++ = 7;
-		*t++ = 'C';
-		*t++ = 0;
 		
-		display_string(1, s);
+		int switch_value = getsw();
+		
+		*t++ = ' ';
+		
+		// Depending on the positions the temperature will be displayed in celsius, kelvin or fahrenheit 
+		if (switch_value == 0)
+		{
+			*t++ = 7;
+			*t++ = 'C';
+			*t++ = 0;
+			
+			display_string(0, "Temperature:");
+			display_string(1, s);
+			display_string(2, "");
+		}
+		else if (switch_value == 8)
+		{
+			*t++ = 'K';
+			*t++ = 0;
+			
+			display_string(0, "Temperature:");
+			display_string(1, s);
+			display_string(2, "");
+		}
+		else if (switch_value == 4)
+		{
+			*t++ = 7;
+			*t++ = 'F';
+			*t++ = 0;
+			
+			display_string(0, "Temperature:");
+			display_string(1, s);
+			display_string(2, "");
+		}
+		else if (switch_value == 1)
+		{
+			display_string(0 , "Timer period:");
+			display_string(1, itoaconv(period));
+			display_string(2, "");
+		}
+		// If two or more switches are switched an error message will appear
+		else
+		{
+			display_string(0, "Invalid");
+			display_string(1, "switch");
+			display_string(2, "combination!");
+		}
+		
+		// Displaying icon depending on the temperature
+		if (display_sun){
+            display_image(96, sun);
+            display_sun = 0;
+		}
+		else if (display_palm){
+			display_image(96, palm);
+            display_palm = 0;
+		}
+		else if (display_snowflake){
+			display_image(96, snowflake);
+            display_snowflake = 0;
+		}
+
 		display_update();
-		delay(1000000);
+		delay(100000);
 	}
 	
 	return 0;
 }
-
