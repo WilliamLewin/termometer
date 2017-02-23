@@ -9,6 +9,7 @@
 #include <pic32mx.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include "mipslab.h"
 
 #define DISPLAY_VDD_PORT PORTF
 #define DISPLAY_VDD_MASK 0x40
@@ -41,7 +42,7 @@ int display_sun = 0;
 int display_palm = 0;
 
 // Timer period
-int period = 123;
+int period = 0;
 
 char textbuffer[4][16];
 
@@ -221,7 +222,7 @@ int getsw(void){
 
 // Get buttons
 int getbtns(void){
-    int btn = (PORTD >> 4) & 0x000F;    //Skifta bitarna 7-4 till plats till lsb, maska! Spara som int.
+    int btn = (PORTD >> 5) & 0x007;    //Skifta bitarna 7-4 till plats till lsb, maska! Spara som int.
     
     return btn;
 }
@@ -496,15 +497,16 @@ char *fixed_to_string(uint16_t num, char *buf) {
 		display_sun = 0;
 	}
 	
+    
 	// Checking the positions of the switches
 	int switch_value = getsw();
 	
 	// Depending on the positions the temperature will be converted to celsius, kelvin or fahrenheit
-	if (switch_value == 0)
+	if (switch_value == 0)  //Celsius
 		n = (num >> 8);
-	else if (switch_value == 8)
-		n = (num >> 8) + 273; 
-	else if (switch_value == 4)
+	else if (switch_value == 8) //Kelvin switch 4
+		n = (num >> 8) + 273;
+	else if (switch_value == 4) //Farenheit switch 3
 		n = (((num >> 8) * 2) + 32);
 	
 	buf += 4;
@@ -641,6 +643,9 @@ int main(void) {
 		t = s + strlen(s);
 		
 		int switch_value = getsw();
+        
+        //Checking the buttons
+        int buttons = getbtns();
 		
 		*t++ = ' ';
 		
@@ -676,10 +681,14 @@ int main(void) {
 		}
 		else if (switch_value == 1)
 		{
-			display_string(0 , "Timer period:");
+			display_string(0 , "Intervall");
 			display_string(1, itoaconv(period));
 			display_string(2, "");
-		}
+            if (buttons == 1)     //Button 2
+                period++;
+           else if (buttons == 2)
+                period--;
+        }
 		// If two or more switches are switched an error message will appear
 		else
 		{
@@ -703,7 +712,7 @@ int main(void) {
 		}
 
 		display_update();
-		delay(100000);
+		delay(1000000);
 	}
 	
 	return 0;
