@@ -41,12 +41,18 @@ int display_snowflake = 0;
 int display_sun = 0;
 int display_palm = 0;
 
-// Timer period
-int period = 0;
+// Timer 
+int pr_count = 0;
+int sec_count = 0;
+int min_count = 0;
+int period = 1; // Period time, default value 1 minute
+
+// Global temps
+uint16_t highest = 0x0000;
 
 char textbuffer[4][16];
 
-static const uint8_t const font[] = {
+const uint8_t const font[] = {
 	0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0,
@@ -480,6 +486,15 @@ char *fixed_to_string(uint16_t num, char *buf) {
 		neg = true;
 	}
 	
+	if(min_count < period)
+	{
+		if(num > highest)
+			highest = num;
+	}
+	
+	if(min_count == period)
+		highest = 0x0000;
+	
 	// Changing picture depending on the temperature
 	if (num >= snowflake_or_sun && num < sun_or_palm){ 
         display_sun = 1;
@@ -497,7 +512,6 @@ char *fixed_to_string(uint16_t num, char *buf) {
 		display_sun = 0;
 	}
 	
-    
 	// Checking the positions of the switches
 	int switch_value = getsw();
 	
@@ -543,7 +557,13 @@ uint32_t strlen(char *str) {
 int main(void) {
 	uint16_t temp;
 	char buf[32], *s, *t;
-
+	
+	T2CON = 0; // Stop timer and clear control register
+	T2CONSET = 0x50; // Prescale 1:32
+	TMR2 = 0; // Clear timer register
+	PR2 = 80000000 / 32 / 100; // Load period register 
+	T2CONSET = 0x8000; // Start timer
+	
 	/* Set up peripheral bus clock */
 	OSCCON &= ~0x180000;
 	OSCCON |= 0x080000;
@@ -573,7 +593,7 @@ int main(void) {
 	/* Clear SPIROV*/
 	SPI2STATCLR &= ~0x40;
 	/* Set CKP = 1, MSTEN = 1; */
-        SPI2CON |= 0x60;
+    SPI2CON |= 0x60;
 	
 	/* Turn on SPI */
 	SPI2CONSET = 0x8000;
@@ -642,9 +662,30 @@ int main(void) {
 		s = fixed_to_string(temp, buf);
 		t = s + strlen(s);
 		
+		// Check interrupt flag
+		if (IFS(0) & 0x100)
+		{
+			pr_count++;
+			IFSCLR(0) = 0x100;
+		}
+		
+		if (pr_count == 10)
+		{
+			sec_count++;
+			pr_count = 0;
+		}
+		if (sec_count == 60)
+		{
+			min_count++;
+			sec_count = 0;
+			if (min_count == period)
+				min_count == 0;
+		}
+		
+		// Checking the switches
 		int switch_value = getsw();
         
-        //Checking the buttons
+        // Checking the buttons
         int buttons = getbtns();
 		
 		*t++ = ' ';
@@ -659,6 +700,7 @@ int main(void) {
 			display_string(0, "Temperature:");
 			display_string(1, s);
 			display_string(2, "");
+			display_string(3, "");
 		}
 		else if (switch_value == 8)
 		{
@@ -668,6 +710,7 @@ int main(void) {
 			display_string(0, "Temperature:");
 			display_string(1, s);
 			display_string(2, "");
+			display_string(3, "");
 		}
 		else if (switch_value == 4)
 		{
@@ -678,15 +721,25 @@ int main(void) {
 			display_string(0, "Temperature:");
 			display_string(1, s);
 			display_string(2, "");
+			display_string(3, "");
+		}
+		else if(switch_value == 2)
+		{
+			display_string(0, "ms, s, min:");
+			display_string(1, itoaconv(pr_count));
+			display_string(2, itoaconv(sec_count));
+			display_string(3, itoaconv(min_count));
 		}
 		else if (switch_value == 1)
 		{
-			display_string(0 , "Intervall");
+			display_string(0 , "Period(min):");
 			display_string(1, itoaconv(period));
-			display_string(2, "");
+			display_string(2, "Highest temp:");
+			display_string(3, itoaconv(highest));
+			
             if (buttons == 1)     //Button 2
                 period++;
-           else if (buttons == 2)
+            else if (buttons == 2)
                 period--;
         }
 		// If two or more switches are switched an error message will appear
@@ -695,6 +748,7 @@ int main(void) {
 			display_string(0, "Invalid");
 			display_string(1, "switch");
 			display_string(2, "combination!");
+			display_string(3, "");
 		}
 		
 		// Displaying icon depending on the temperature
