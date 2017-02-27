@@ -48,7 +48,9 @@ int min_count = 0;
 int period = 1; // Period time, default value 1 minute
 
 // Global temps
-uint16_t highest = 0x0000;
+uint16_t highest = 0x0000; // Reset temperature value
+uint16_t snowflake_or_sun = 0x0A00; // Temperature value 10 celsius
+uint16_t sun_or_palm = 0x1900; // Temperature value 25 celsius
 
 char textbuffer[4][16];
 
@@ -478,9 +480,6 @@ char *fixed_to_string(uint16_t num, char *buf) {
 	uint32_t n;
 	char *tmp;
 	
-	uint16_t snowflake_or_sun = 0x0A00; // Temperature value 10 celsius
-    uint16_t sun_or_palm = 0x1900; // Temperature value 25 celsius
-	
 	if(num & 0x8000) {
 		num = ~num + 1;
 		neg = true;
@@ -491,36 +490,24 @@ char *fixed_to_string(uint16_t num, char *buf) {
 		if(num > highest)
 			highest = num;
 	}
-	
-	if(min_count == period)
-		highest = 0x0000;
-	
+		
 	// Changing picture depending on the temperature
-	if (num >= snowflake_or_sun && num < sun_or_palm){ 
+	if (num >= snowflake_or_sun && num < sun_or_palm) 
         display_sun = 1;
-		display_palm = 0;
-		display_snowflake = 0;
-	}
-    else if (num >= sun_or_palm){ 
+    else if (num >= sun_or_palm) 
         display_palm = 1;
-		display_sun = 0;
-		display_snowflake = 0;
-	}
-	else{
+	else
 		display_snowflake = 1;
-		display_palm = 0;
-		display_sun = 0;
-	}
 	
-	// Checking the positions of the switches
+	// Checking the switches
 	int switch_value = getsw();
 	
 	// Depending on the positions the temperature will be converted to celsius, kelvin or fahrenheit
-	if (switch_value == 0)  //Celsius
+	if (switch_value == 0)  // Celsius default unit
 		n = (num >> 8);
-	else if (switch_value == 8) //Kelvin switch 4
+	else if (switch_value == 8) // Kelvin switch 4
 		n = (num >> 8) + 273;
-	else if (switch_value == 4) //Farenheit switch 3
+	else if (switch_value == 4) // Farenheit switch 3
 		n = (((num >> 8) * 2) + 32);
 	
 	buf += 4;
@@ -552,6 +539,63 @@ uint32_t strlen(char *str) {
 	while(*str++)
 		n++;
 	return n;
+}
+
+void display_temperature(char *s)
+{
+	display_string(0, "Temperature:");
+	display_string(1, s);
+	display_string(2, "");
+	display_string(3, "");
+}
+
+void display_timer(void)
+{
+	display_string(0, "s, min:");
+	display_string(1, itoaconv(sec_count));
+	display_string(2, itoaconv(min_count));
+}
+
+void display_period_and_highest_temp(void)
+{
+	// Checking the buttons
+    int buttons = getbtns();
+	
+	display_string(0 , "Period(min):");
+	display_string(1, itoaconv(period));
+	display_string(2, "Highest temp");
+	display_string(3, itoaconv(highest));
+			
+    if (buttons == 1) // Button 2
+        period++;
+    else if (buttons == 2) // Button 3
+        period--;
+}
+
+void display_error_message(void)
+{
+	display_string(0, "Invalid");
+	display_string(1, "switch");
+	display_string(2, "combination!");
+	display_string(3, "");
+}
+
+void display_image_sun(void)
+{
+	display_image(96, sun);
+    display_sun = 0;
+}
+
+void display_image_palm(void)
+{
+	display_image(96, palm);
+    display_palm = 0;
+}
+
+void display_image_snowflake(void)
+{
+	display_image(96, snowflake);
+    display_snowflake = 0;
 }
 
 int main(void) {
@@ -674,19 +718,18 @@ int main(void) {
 			sec_count++;
 			pr_count = 0;
 		}
+		
 		if (sec_count == 60)
 		{
 			min_count++;
 			sec_count = 0;
 			if (min_count == period)
-				min_count == 0;
+				min_count = 0;
+				highest = 0x0000;
 		}
 		
 		// Checking the switches
 		int switch_value = getsw();
-        
-        // Checking the buttons
-        int buttons = getbtns();
 		
 		*t++ = ' ';
 		
@@ -697,20 +740,14 @@ int main(void) {
 			*t++ = 'C';
 			*t++ = 0;
 			
-			display_string(0, "Temperature:");
-			display_string(1, s);
-			display_string(2, "");
-			display_string(3, "");
+			display_temperature(s);
 		}
 		else if (switch_value == 8)
 		{
 			*t++ = 'K';
 			*t++ = 0;
 			
-			display_string(0, "Temperature:");
-			display_string(1, s);
-			display_string(2, "");
-			display_string(3, "");
+			display_temperature(s);
 		}
 		else if (switch_value == 4)
 		{
@@ -718,52 +755,23 @@ int main(void) {
 			*t++ = 'F';
 			*t++ = 0;
 			
-			display_string(0, "Temperature:");
-			display_string(1, s);
-			display_string(2, "");
-			display_string(3, "");
+			display_temperature(s);
 		}
 		else if(switch_value == 2)
-		{
-			display_string(0, "ms, s, min:");
-			display_string(1, itoaconv(pr_count));
-			display_string(2, itoaconv(sec_count));
-			display_string(3, itoaconv(min_count));
-		}
+			display_timer();
 		else if (switch_value == 1)
-		{
-			display_string(0 , "Period(min):");
-			display_string(1, itoaconv(period));
-			display_string(2, "Highest temp:");
-			display_string(3, itoaconv(highest));
-			
-            if (buttons == 1)     //Button 2
-                period++;
-            else if (buttons == 2)
-                period--;
-        }
+			display_period_and_highest_temp();
 		// If two or more switches are switched an error message will appear
 		else
-		{
-			display_string(0, "Invalid");
-			display_string(1, "switch");
-			display_string(2, "combination!");
-			display_string(3, "");
-		}
+			display_error_message();
 		
 		// Displaying icon depending on the temperature
-		if (display_sun){
-            display_image(96, sun);
-            display_sun = 0;
-		}
-		else if (display_palm){
-			display_image(96, palm);
-            display_palm = 0;
-		}
-		else if (display_snowflake){
-			display_image(96, snowflake);
-            display_snowflake = 0;
-		}
+		if (display_sun)
+			display_image_sun();
+		else if (display_palm)
+			display_image_palm();
+		else if (display_snowflake)
+			display_image_snowflake();
 
 		display_update();
 		delay(1000000);
