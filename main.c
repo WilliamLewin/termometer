@@ -560,11 +560,16 @@ void display_period_and_highest_temp(void)
 {
 	// Checking the buttons
     int buttons = getbtns();
-	
+    
+
+    unsigned char* temp = &highest;
+    int first = *temp;  //Point, unused for now
+    int second = *(temp+1); //Integer
+    
 	display_string(0 , "Period(min):");
 	display_string(1, itoaconv(period));
 	display_string(2, "Highest temp");
-	display_string(3, itoaconv(highest));
+	display_string(3, itoaconv(second));
 			
     if (buttons == 1) // Button 2
         period++;
@@ -599,6 +604,7 @@ void display_image_snowflake(void)
 }
 
 int main(void) {
+    
 	uint16_t temp;
 	char buf[32], *s, *t;
 	
